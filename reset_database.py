@@ -29,6 +29,7 @@ def reset_database():
             print("Dropping existing tables...")
             cur.execute("""
                 DROP TABLE IF EXISTS bookmark_tags CASCADE;
+                DROP TABLE IF EXISTS summaries CASCADE;
                 DROP TABLE IF EXISTS bookmarks CASCADE;
                 DROP TABLE IF EXISTS tags CASCADE;
                 DROP TABLE IF EXISTS collections CASCADE;
@@ -66,6 +67,17 @@ def reset_database():
                 )
             """)
             
+            # Create summaries table
+            print("Creating summaries table...")
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS summaries (
+                    id SERIAL PRIMARY KEY,
+                    bookmark_id INTEGER REFERENCES bookmarks(id) ON DELETE CASCADE,
+                    summary TEXT NOT NULL,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            
             # Create bookmark_tags junction table
             print("Creating bookmark_tags junction table...")
             cur.execute("""
@@ -82,6 +94,7 @@ def reset_database():
             cur.execute("CREATE INDEX IF NOT EXISTS idx_bookmarks_collection_id ON bookmarks(collection_id)")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_bookmark_tags_bookmark_id ON bookmark_tags(bookmark_id)")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_bookmark_tags_tag_id ON bookmark_tags(tag_id)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_summaries_bookmark_id ON summaries(bookmark_id)")
             
         conn.commit()
         print("Database reset successful!")

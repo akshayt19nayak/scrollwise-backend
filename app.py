@@ -3,7 +3,8 @@ from flask_cors import CORS
 from database_postgres import (
     save_bookmark, get_bookmark, get_all_bookmarks, init_db,
     create_collection, get_all_collections, create_tag, get_all_tags,
-    update_bookmark, get_bookmarks_by_tag_id, get_bookmarks_by_collection_id
+    update_bookmark, get_bookmarks_by_tag_id, get_bookmarks_by_collection_id,
+    save_summary, get_summary
 )
 from youtube import get_video_id, fetch_transcript, summarize
 import traceback
@@ -133,34 +134,6 @@ def create_new_tag():
         print(traceback.format_exc(), file=sys.stderr)
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/summarize', methods=['POST'])
-def get_summary():
-    try:
-        data = request.get_json()
-        text = data.get('text')
-        
-        if not text:
-            return jsonify({'error': 'Text is required'}), 400
-        
-        # First check if it's a valid YouTube URL
-        video_id = get_video_id(text)
-        if not video_id:
-            return jsonify({'error': 'Invalid YouTube URL'}), 400
-        
-        # Fetch the transcript
-        transcript = fetch_transcript(text)
-        if transcript.startswith("An error occurred"):
-            return jsonify({'error': transcript}), 400
-        
-        # Generate the summary
-        summary = summarize(text)
-        return jsonify({'summary': summary})
-        
-    except Exception as e:
-        print("ERROR in get_summary:", file=sys.stderr)
-        print(traceback.format_exc(), file=sys.stderr)
-        return jsonify({'error': str(e)}), 500
-
 @app.route('/api/tags/<int:tag_id>/bookmarks', methods=['GET'])
 def get_bookmarks_by_tag(tag_id):
     try:
@@ -179,6 +152,49 @@ def get_bookmarks_by_collection(collection_id):
     except Exception as e:
         print("ERROR in get_bookmarks_by_collection:", file=sys.stderr)
         print(traceback.format_exc(), file=sys.stderr)
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/bookmarks/<int:bookmark_id>/summary', methods=['POST'])
+def save_bookmark_summary(bookmark_id):
+    try:
+        # Get the bookmark text
+        bookmark = get_bookmark(bookmark_id)
+        if not bookmark:
+            return jsonify({'error': 'Bookmark not found'}), 404
+            
+        text = bookmark['text']
+        
+        # Check if it's a valid YouTube URL
+        video_id = get_video_id(text)
+        if not video_id:
+            return jsonify({'error': 'Invalid YouTube URL'}), 400
+        
+        # Fetch the transcript
+        transcript = fetch_transcript(text)
+        if transcript.startswith("An error occurred"):
+            return jsonify({'error': transcript}), 400
+        
+        # Generate the summary
+        summary = summarize(text)
+        
+        # Save the summary
+        summary_id = save_summary(bookmark_id, summary)
+        return jsonify({'id': summary_id, 'summary': summary}), 201
+    except Exception as e:
+        print(f"Error in save_bookmark_summary: {e}")
+        traceback.print_exc(file=sys.stderr)
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/bookmarks/<int:bookmark_id>/summary', methods=['GET'])
+def get_bookmark_summary(bookmark_id):
+    try:
+        summary = get_summary(bookmark_id)
+        if summary is None:
+            return jsonify({'error': 'Summary not found'}), 404
+        return jsonify({'summary': summary})
+    except Exception as e:
+        print(f"Error in get_bookmark_summary: {e}")
+        traceback.print_exc(file=sys.stderr)
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':

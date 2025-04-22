@@ -68,6 +68,17 @@ def init_db():
                 )
             """)
             
+            # Create summaries table
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS summaries (
+                    id SERIAL PRIMARY KEY,
+                    bookmark_id INTEGER REFERENCES bookmarks(id) ON DELETE CASCADE,
+                    summary TEXT NOT NULL,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            
             # Create indexes for better performance
             cur.execute("CREATE INDEX IF NOT EXISTS idx_bookmarks_collection_id ON bookmarks(collection_id)")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_bookmark_tags_bookmark_id ON bookmark_tags(bookmark_id)")
@@ -394,6 +405,48 @@ def get_bookmarks_by_collection_id(collection_id):
     except Exception as e:
         print(f"Error getting bookmarks by collection: {e}")
         raise
+
+def save_summary(bookmark_id, summary):
+    """Save a summary for a bookmark"""
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cur:
+            # Delete any existing summary for this bookmark
+            cur.execute("DELETE FROM summaries WHERE bookmark_id = %s", (bookmark_id,))
+            
+            # Insert the new summary
+            cur.execute(
+                "INSERT INTO summaries (bookmark_id, summary) VALUES (%s, %s) RETURNING id",
+                (bookmark_id, summary)
+            )
+            summary_id = cur.fetchone()[0]
+                    
+        conn.commit()
+        return summary_id
+    except psycopg2.Error as e:
+        print(f"Error saving summary: {e}")
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+def get_summary(bookmark_id):
+    """Retrieve a summary for a bookmark"""
+    conn = get_db_connection()
+    try:
+        with conn.cursor(cursor_factory=DictCursor) as cur:
+            cur.execute("""
+                SELECT summary
+                FROM summaries
+                WHERE bookmark_id = %s
+            """, (bookmark_id,))
+            result = cur.fetchone()
+            return result['summary'] if result else None
+    except psycopg2.Error as e:
+        print(f"Error retrieving summary: {e}")
+        raise
+    finally:
+        conn.close()
 
 # Initialize the database when the module is imported
 if __name__ == "__main__":
